@@ -15,7 +15,6 @@ CATEGORIES = [
 
 
 KEYWORDS = {
-
     "Mad": [
         "netto",
         "rema",
@@ -30,7 +29,6 @@ KEYWORDS = {
         "pizza",
         "burger",
     ],
-
     "Transport": [
         "dsb",
         "rejsekort",
@@ -42,7 +40,6 @@ KEYWORDS = {
         "parking",
         "benzin",
     ],
-
     "Bolig": [
         "rent",
         "husleje",
@@ -51,7 +48,6 @@ KEYWORDS = {
         "heating",
         "internet",
     ],
-
     "Underholdning": [
         "cinema",
         "biograf",
@@ -63,7 +59,6 @@ KEYWORDS = {
         "museum",
         "tivoli",
     ],
-
     "Kosmetik og personlig pleje": [
         "matas",
         "sephora",
@@ -75,7 +70,6 @@ KEYWORDS = {
         "frisør",
         "skincare",
     ],
-
     "Shopping": [
         "h&m",
         "zara",
@@ -86,7 +80,6 @@ KEYWORDS = {
         "amazon",
         "asos",
     ],
-
     "Abonnementer": [
         "spotify",
         "hbo",
@@ -103,18 +96,11 @@ KEYWORDS = {
 
 def normalize(text):
     text = text.lower().strip()
-
-    text = re.sub(
-        r"[^a-z0-9æøå+& ]+",
-        " ",
-        text
-    )
-
+    text = re.sub(r"[^a-z0-9æøå+& ]+", " ", text)
     return re.sub(r"\s+", " ", text)
 
 
 def suggest_category(description):
-
     normalized = normalize(description)
 
     if not normalized:
@@ -124,22 +110,13 @@ def suggest_category(description):
     best_score = 0
 
     for category, keywords in KEYWORDS.items():
-
         for keyword in keywords:
-
             candidate = normalize(keyword)
 
-            # Exact or partial match
             if candidate in normalized:
                 return category
 
-            # Fuzzy match
-            score = SequenceMatcher(
-                None,
-                normalized,
-                candidate
-            ).ratio()
-
+            score = SequenceMatcher(None, normalized, candidate).ratio()
             if score > best_score:
                 best_category = category
                 best_score = score

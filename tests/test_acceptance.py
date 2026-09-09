@@ -1,12 +1,12 @@
 from dataclasses import dataclass, field
 from datetime import date as real_date
-from pathlib import Path
 
 import pytest
 from pytest_bdd import given, parsers, scenarios, then, when
 
-import app as app_module
-from db import execute, query_all, query_one
+import expense_tracker.app as app_module
+from expense_tracker.database import execute, query_all, query_one
+from expense_tracker.money import parse_dkk_to_ore
 
 
 scenarios(
@@ -17,12 +17,11 @@ scenarios(
 )
 
 
-class FrozenDate(real_date):
+class FrozenClock:
     current = real_date(2026, 9, 9)
 
-    @classmethod
-    def today(cls):
-        return cls.current
+    def today(self):
+        return self.current
 
 
 @dataclass
@@ -48,13 +47,13 @@ def insert_expense(world, row, default_status="actual"):
         world.database,
         """
         INSERT INTO expenses (
-            id, description, amount, expense_date, category, status
+            id, description, amount_ore, expense_date, category, status
         ) VALUES (?, ?, ?, ?, ?, ?)
         """,
         (
             int(row["id"]) if row.get("id") else None,
             row["description"],
-            float(row["amount"]),
+            parse_dkk_to_ore(row["amount"]),
             row["date"],
             row["category"],
             row.get("status", default_status),
@@ -73,8 +72,7 @@ def open_overview(world):
 
 @pytest.fixture
 def world(tmp_path, monkeypatch):
-    FrozenDate.current = real_date(2026, 9, 9)
-    monkeypatch.setattr(app_module, "date", FrozenDate)
+    FrozenClock.current = real_date(2026, 9, 9)
 
     rendered = {}
 
@@ -90,6 +88,7 @@ def world(tmp_path, monkeypatch):
             "TESTING": True,
             "SECRET_KEY": "acceptance-test",
             "DATABASE": database,
+            "CLOCK": FrozenClock(),
         }
     )
 
@@ -98,7 +97,7 @@ def world(tmp_path, monkeypatch):
 
 @given(parsers.parse('today is "{value}"'))
 def today_is(value):
-    FrozenDate.current = real_date.fromisoformat(value)
+    FrozenClock.current = real_date.fromisoformat(value)
 
 
 @given("the expense store is empty")
@@ -347,15 +346,12 @@ def expense_still_exists_unchanged(world, expense_id):
     expense = query_one(
         world.database, "SELECT * FROM expenses WHERE id = ?", (expense_id,)
     )
-    assert dict(expense) | {"created_at": None} == {
-        "id": expense_id,
-        "description": "Netto",
-        "amount": 99.95,
-        "expense_date": "2026-09-08",
-        "category": "Mad",
-        "status": "actual",
-        "created_at": None,
-    }
+    assert expense["id"] == expense_id
+    assert expense["description"] == "Netto"
+    assert expense["amount_ore"] == 9_995
+    assert expense["expense_date"] == "2026-09-08"
+    assert expense["category"] == "Mad"
+    assert expense["status"] == "actual"
 
 
 @then(parsers.parse('expense "{expense_id:d}" is shown in the expense list'))
@@ -376,7 +372,7 @@ def expense_has_status(world, status):
 def expense_not_in_actual_totals(world):
     total = query_one(
         world.database,
-        "SELECT COALESCE(SUM(amount), 0) AS total FROM expenses WHERE status = 'actual'",
+        "SELECT COALESCE(SUM(amount_ore), 0) AS total FROM expenses WHERE status = 'actual'",
     )["total"]
     assert total == 0
 
@@ -441,13 +437,13 @@ def amount_in_actual_total(world, amount, month):
     total = query_one(
         world.database,
         """
-        SELECT COALESCE(SUM(amount), 0) AS total
+        SELECT COALESCE(SUM(amount_ore), 0) AS total
         FROM expenses
         WHERE status = 'actual' AND substr(expense_date, 1, 7) = ?
         """,
         (month,),
     )["total"]
-    assert total == pytest.approx(amount)
+    assert total == parse_dkk_to_ore(amount)
 
 
 @then(parsers.parse('expense "{expense_id:d}" is not an actual expense'))
@@ -464,7 +460,7 @@ def amount_not_in_actual_total(world, amount, month):
     total = query_one(
         world.database,
         """
-        SELECT COALESCE(SUM(amount), 0) AS total
+        SELECT COALESCE(SUM(amount_ore), 0) AS total
         FROM expenses
         WHERE status = 'actual' AND substr(expense_date, 1, 7) = ?
         """,
