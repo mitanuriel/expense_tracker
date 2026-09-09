@@ -1,6 +1,6 @@
 # Acceptance tests
 
-The files in `tests/features/` express the product specification as Gherkin acceptance tests. They are intentionally independent of Flask, FastAPI, a database, and a browser automation tool because those choices have not been made and the repository does not yet contain an application.
+The files in `tests/features/` express the product specification as Gherkin scenarios. The executable step definitions and assertions in `test_acceptance.py` bind those scenarios to the Flask routes and SQLite database.
 
 ## Coverage
 
@@ -12,17 +12,40 @@ The files in `tests/features/` express the product specification as Gherkin acce
 | Delete or cancel deletion | `features/delete_expense.feature` |
 | Create and resolve future expenses | `features/future_expense.feature` |
 
-The scenarios use a fixed clock so tests remain deterministic. Monetary values are represented with two decimal places, and the overview example follows the specification by rounding percentages to the nearest whole percent.
+The suite currently contains 21 generated pytest scenarios. Each test uses a temporary database and a fixed clock, so runs are isolated and deterministic. Monetary values use two decimal places, and monthly percentages are allocated as whole numbers that add up to 100%.
 
-## Making the scenarios executable
+## Set up the development environment
 
-After the backend and UI technologies are selected, connect each step to the application using a Gherkin-compatible runner such as `pytest-bdd` or Behave. Keep domain setup steps (clock and stored expenses) below the UI layer, and drive user actions through the chosen HTTP client or browser driver.
+Create a persistent virtual environment and install the test dependencies:
 
-The following product decisions remain intentionally unspecified and should be settled before adding narrower validation tests:
+```sh
+uv venv .venv --python python3
+uv pip install --python .venv/bin/python -r requirements-dev.txt
+```
 
-- whether zero or negative amounts are rejected;
-- accepted date and decimal input formats;
-- what happens to a rejected planned expense (retained with a rejected status or deleted);
-- percentage precision and how rounding remainders are displayed;
+The repository's VS Code configuration points Python tooling at `.venv/bin/python` so imports from `pytest` and `pytest_bdd` resolve in the editor.
+
+## Run the tests
+
+From the project root:
+
+```sh
+.venv/bin/python -m pytest
+```
+
+The expected result for the current implementation is:
+
+```text
+21 passed
+```
+
+## Test boundaries
+
+The tests exercise the Flask application through its test client and assert persisted data directly through the SQLite helpers. Template rendering is captured so monthly totals and chart data can be verified without coupling the backend suite to an HTML structure or chart library.
+
+The following areas still require separate tests when the frontend and related behavior are implemented:
+
 - behavior when the selected month has no actual expenses;
-- behavior when the categorization assistant is unavailable or uncertain.
+- behavior when the categorization assistant is unavailable or uncertain;
+- browser rendering of the chart;
+- browser confirmation and cancellation dialogs.
